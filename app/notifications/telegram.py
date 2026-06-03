@@ -19,5 +19,4 @@ class TelegramNotifier:
             response = requests.post(url, json={"chat_id": self.chat_id, "text": message}, timeout=10)
             response.raise_for_status()
         except requests.RequestException as exc:
-            logger.warning("Telegram alert failed: {}", exc)
-
+            logger.warning("Telegram alert failed: {}", exc.__class__.__name__)

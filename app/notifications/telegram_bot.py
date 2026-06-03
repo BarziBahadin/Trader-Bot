@@ -19,6 +19,7 @@ def run_telegram_polling(settings: Settings, interval_seconds: int = 3) -> None:
     notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
     offset = 0
     conflict_logged = False
+    _set_bot_commands(settings)
     _delete_webhook(settings)
     while True:
         try:
@@ -62,6 +63,33 @@ def _delete_webhook(settings: Settings) -> None:
         )
     except requests.RequestException as exc:
         logger.warning("Telegram webhook cleanup failed: {}", _safe_telegram_error(exc))
+
+
+def _set_bot_commands(settings: Settings) -> None:
+    commands = [
+        {"command": "start", "description": "Show the bot menu"},
+        {"command": "status", "description": "Current bot status"},
+        {"command": "account", "description": "Equity, balance, and PnL"},
+        {"command": "symbols", "description": "Show market watchlist"},
+        {"command": "set", "description": "Change active market"},
+        {"command": "risk", "description": "Show risk settings"},
+        {"command": "setrisk", "description": "Change risk settings"},
+        {"command": "calc", "description": "Preview position size"},
+        {"command": "whyhold", "description": "Explain the last hold"},
+        {"command": "livecheck", "description": "Show live trading safety checks"},
+        {"command": "stop", "description": "Emergency stop"},
+        {"command": "resume", "description": "Resume trading"},
+        {"command": "sell", "description": "Close position with confirmation"},
+    ]
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{settings.telegram_bot_token}/setMyCommands",
+            json={"commands": commands},
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("Telegram command menu setup failed: {}", _safe_telegram_error(exc))
 
 
 def _safe_telegram_error(exc: Exception) -> str:
