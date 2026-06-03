@@ -11,6 +11,8 @@ def test_live_readiness_blocks_half_configured_live_mode():
         OKX_API_KEY="",
         OKX_API_SECRET="",
         OKX_PASSPHRASE="",
+        LIVE_TRADING_ACK="",
+        API_AUTH_TOKEN="",
     )
 
     result = live_readiness(settings, "BTC/USDT:USDT")

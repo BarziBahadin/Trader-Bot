@@ -223,7 +223,7 @@ def _candles_for_symbol(symbol: str, timeframe: str, limit: int, settings: Setti
     try:
         data = MarketData(provider).candles(instrument.symbol, timeframe, limit)
     except Exception:
-        if settings.bot_mode == "live" and instrument.trade_enabled:
+        if settings.bot_mode == "live" and _is_live_futures_symbol(instrument.symbol):
             raise HTTPException(status_code=503, detail=f"{instrument.provider} market data unavailable")
         data = MarketData(build_provider("paper", settings)).candles(instrument.symbol, timeframe, limit)
     if "timestamp" in data:
@@ -354,6 +354,10 @@ def _account_summary(provider) -> dict:
 
 def _safe_error_message(exc: Exception) -> str:
     return exc.__class__.__name__
+
+
+def _is_live_futures_symbol(symbol: str) -> bool:
+    return ":USDT" in symbol
 
 
 def _state_to_dict(state) -> dict:

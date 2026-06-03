@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import AppState, InstrumentModel, WatchlistItem
-from app.markets.instruments import DEFAULT_INSTRUMENTS, Instrument, default_instrument, normalize_symbol
+from app.markets.instruments import DEFAULT_INSTRUMENTS, DEFAULT_WATCHLIST_SYMBOLS, Instrument, default_instrument, normalize_symbol
 
 
 OLD_REAL_PROVIDERS = {"binance", "ctrader", "mt5"}
@@ -14,12 +14,11 @@ OLD_REAL_PROVIDERS = {"binance", "ctrader", "mt5"}
 
 def seed_market_defaults(db: Session, settings: Settings) -> None:
     _normalize_old_providers(db)
-    if db.query(InstrumentModel).first() is None:
-        for instrument in DEFAULT_INSTRUMENTS:
-            db.add(_instrument_model(instrument))
+    _upsert_default_instruments(db)
     if db.query(WatchlistItem).first() is None:
-        for instrument in DEFAULT_INSTRUMENTS:
-            db.add(WatchlistItem(symbol=instrument.symbol, provider=instrument.provider, asset_class=instrument.asset_class))
+        _seed_default_watchlist(db)
+    else:
+        _repair_watchlist(db)
     if get_app_state(db) is None:
         active = default_instrument(settings.symbol, settings.provider)
         db.add(
@@ -51,6 +50,36 @@ def _normalize_old_providers(db: Session) -> None:
         state.active_provider = "okx"
 
 
+def _upsert_default_instruments(db: Session) -> None:
+    for instrument in DEFAULT_INSTRUMENTS:
+        existing = _find_instrument_model(db, instrument.symbol, instrument.provider)
+        if existing:
+            for key, value in instrument.to_dict().items():
+                setattr(existing, key, value)
+        else:
+            db.add(_instrument_model(instrument))
+
+
+def _seed_default_watchlist(db: Session) -> None:
+    for symbol in DEFAULT_WATCHLIST_SYMBOLS:
+        instrument = find_instrument(db, symbol)
+        if instrument:
+            db.add(WatchlistItem(symbol=instrument.symbol, provider=instrument.provider, asset_class=instrument.asset_class))
+
+
+def _repair_watchlist(db: Session) -> None:
+    desired_symbols = {normalize_symbol(symbol) for symbol in DEFAULT_WATCHLIST_SYMBOLS}
+    for item in list(db.query(WatchlistItem).all()):
+        if normalize_symbol(item.symbol) not in desired_symbols:
+            db.delete(item)
+    existing = {(normalize_symbol(item.symbol), item.provider) for item in db.query(WatchlistItem).all()}
+    for symbol in DEFAULT_WATCHLIST_SYMBOLS:
+        instrument = find_instrument(db, symbol)
+        if instrument and (normalize_symbol(instrument.symbol), instrument.provider) not in existing:
+            db.add(WatchlistItem(symbol=instrument.symbol, provider=instrument.provider, asset_class=instrument.asset_class))
+            existing.add((normalize_symbol(instrument.symbol), instrument.provider))
+
+
 def get_app_state(db: Session) -> AppState | None:
     return db.query(AppState).filter(AppState.id == 1).first()
 
@@ -80,6 +109,15 @@ def find_instrument(db: Session, symbol: str) -> Instrument | None:
     for row in rows:
         if normalize_symbol(row.symbol) == normalized:
             return _instrument_from_model(row)
+    return None
+
+
+def _find_instrument_model(db: Session, symbol: str, provider: str) -> InstrumentModel | None:
+    normalized = normalize_symbol(symbol)
+    rows = db.query(InstrumentModel).filter(InstrumentModel.provider == provider).all()
+    for row in rows:
+        if normalize_symbol(row.symbol) == normalized:
+            return row
     return None
 
 

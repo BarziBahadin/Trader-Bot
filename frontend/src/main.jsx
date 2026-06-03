@@ -97,6 +97,7 @@ function App() {
   }
 
   const selectedSymbol = status?.symbol || settings?.active_symbol || '';
+  const instrumentOptions = watchlist.length ? watchlist : symbols;
 
   return (
     <main>
@@ -116,7 +117,7 @@ function App() {
         <label>
           Instrument
           <select value={selectedSymbol} onChange={(event) => activateSymbol(event.target.value)}>
-            {symbols.map((item) => <option key={`${item.provider}:${item.symbol}`} value={item.symbol}>{item.symbol} · {item.asset_class}</option>)}
+            {instrumentOptions.map((item) => <option key={`${item.provider}:${item.symbol}`} value={item.symbol}>{item.symbol} · {item.asset_class}</option>)}
           </select>
         </label>
         <label>

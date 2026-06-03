@@ -29,15 +29,33 @@ DEFAULT_INSTRUMENTS: list[Instrument] = [
     Instrument("BTC/USDT:USDT", "Bitcoin USDT perpetual", "crypto", "okx", "BTC", "USDT", 2, 0.01, 1, 0.01, 0.01, 10),
     Instrument("ETH/USDT:USDT", "Ethereum USDT perpetual", "crypto", "okx", "ETH", "USDT", 2, 0.01, 1, 0.01, 0.01, 10),
     Instrument("SOL/USDT:USDT", "Solana USDT perpetual", "crypto", "okx", "SOL", "USDT", 3, 0.001, 1, 0.01, 0.01, 10),
+    Instrument("XAU/USDT:USDT", "Gold USDT perpetual", "metals", "okx", "XAU", "USDT", 2, 0.01, 1, 0.01, 0.01, 1),
+    Instrument("XAG/USDT:USDT", "Silver USDT perpetual", "metals", "okx", "XAG", "USDT", 3, 0.001, 1, 0.01, 0.01, 1),
     Instrument("BTC/USDT", "Bitcoin / Tether", "crypto", "okx", "BTC", "USDT", 2, 0.01, 1, 0.00001, 0.00001, 1),
     Instrument("ETH/USDT", "Ethereum / Tether", "crypto", "okx", "ETH", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
     Instrument("SOL/USDT", "Solana / Tether", "crypto", "okx", "SOL", "USDT", 3, 0.001, 1, 0.001, 0.001, 1),
     Instrument("PAXG/USDT", "PAX Gold / Tether", "metals", "okx", "PAXG", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
+    Instrument("PAXG/USD", "PAX Gold / US Dollar", "metals", "okx", "PAXG", "USD", 2, 0.01, 1, 0.0001, 0.0001, 1),
     Instrument("XAUT/USDT", "Tether Gold / Tether", "metals", "okx", "XAUT", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
     Instrument("EUR/USDT", "Euro / Tether", "forex", "okx", "EUR", "USDT", 5, 0.00001, 1, 0.01, 0.01, 1),
     Instrument("EURC/USDT", "Euro Coin / Tether", "forex", "okx", "EURC", "USDT", 5, 0.00001, 1, 0.01, 0.01, 1),
     Instrument("XAUUSD", "Gold / US Dollar preview", "metals", "okx", "XAU", "USD", 2, 0.01, 100, 0.01, 0.01, 20, trade_enabled=False),
     Instrument("USOIL", "US Oil preview", "commodities", "okx", "OIL", "USD", 2, 0.01, 1_000, 0.01, 0.01, 10, trade_enabled=False),
+]
+
+
+DEFAULT_WATCHLIST_SYMBOLS = [
+    "BTC/USDT:USDT",
+    "ETH/USDT:USDT",
+    "SOL/USDT:USDT",
+    "XAU/USDT:USDT",
+    "XAG/USDT:USDT",
+    "PAXG/USDT",
+    "PAXG/USD",
+    "XAUT/USDT",
+    "EUR/USDT",
+    "EURC/USDT",
+    "USOIL",
 ]
 
 
@@ -47,7 +65,8 @@ def normalize_symbol(symbol: str) -> str:
 
 def infer_asset_class(symbol: str) -> str:
     normalized = normalize_symbol(symbol).replace("/", "")
-    if normalized in {"XAUUSD", "XAGUSD"}:
+    base = normalize_symbol(symbol).split("/")[0]
+    if normalized in {"XAUUSD", "XAGUSD"} or base in {"XAU", "XAG", "PAXG", "XAUT"}:
         return "metals"
     if normalized in {"USOIL", "UKOIL", "WTI", "BRENT"}:
         return "commodities"
@@ -81,4 +100,4 @@ def default_instrument(symbol: str, provider: str = "paper") -> Instrument:
 
 
 def default_watchlist() -> list[str]:
-    return [instrument.symbol for instrument in DEFAULT_INSTRUMENTS]
+    return DEFAULT_WATCHLIST_SYMBOLS[:]

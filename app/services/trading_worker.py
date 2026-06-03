@@ -9,6 +9,7 @@ from app.db.models import Trade
 from app.execution.order_manager import OrderManager
 from app.notifications.telegram import TelegramNotifier
 from app.providers.registry import build_provider
+from app.services.execution_guard import ExecutionBlocked, assert_order_execution_allowed
 from app.services.market_service import require_app_state, seed_market_defaults
 from app.strategy.rsi_ma_strategy import RsiMaStrategy
 from app.utils.logger import logger
@@ -44,6 +45,12 @@ def _run_once(settings: Settings, notifier: TelegramNotifier) -> None:
         settings.provider = state.active_provider
         settings.asset_class = state.active_asset_class
         settings.timeframe = state.timeframe
+        if settings.bot_mode == "live":
+            try:
+                assert_order_execution_allowed(settings, state.active_provider, state.active_symbol)
+            except ExecutionBlocked as exc:
+                logger.warning("Live trading paused for {}: {}", state.active_symbol, exc)
+                return
 
         provider_name = "paper" if settings.bot_mode == "paper" else state.active_provider
         provider = build_provider(provider_name, settings)
