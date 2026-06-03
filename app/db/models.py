@@ -51,6 +51,7 @@ class Signal(Base):
     fast_ma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     slow_ma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     price: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -115,7 +116,9 @@ class ConfirmationCode(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     code: Mapped[str] = mapped_column(String(16), index=True)
+    code_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(64), index=True)
+    requester_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     payload: Mapped[str] = mapped_column(Text, default="{}")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

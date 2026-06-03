@@ -6,10 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import AppState, InstrumentModel, WatchlistItem
-from app.markets.instruments import DEFAULT_INSTRUMENTS, Instrument, default_instrument, default_watchlist, normalize_symbol
+from app.markets.instruments import DEFAULT_INSTRUMENTS, Instrument, default_instrument, normalize_symbol
+
+
+OLD_REAL_PROVIDERS = {"binance", "ctrader", "mt5"}
 
 
 def seed_market_defaults(db: Session, settings: Settings) -> None:
+    _normalize_old_providers(db)
     if db.query(InstrumentModel).first() is None:
         for instrument in DEFAULT_INSTRUMENTS:
             db.add(_instrument_model(instrument))
@@ -33,6 +37,18 @@ def seed_market_defaults(db: Session, settings: Settings) -> None:
             )
         )
     db.commit()
+
+
+def _normalize_old_providers(db: Session) -> None:
+    for row in db.query(InstrumentModel).all():
+        if row.provider in OLD_REAL_PROVIDERS:
+            row.provider = "okx"
+    for row in db.query(WatchlistItem).all():
+        if row.provider in OLD_REAL_PROVIDERS:
+            row.provider = "okx"
+    state = get_app_state(db)
+    if state and state.active_provider in OLD_REAL_PROVIDERS:
+        state.active_provider = "okx"
 
 
 def get_app_state(db: Session) -> AppState | None:

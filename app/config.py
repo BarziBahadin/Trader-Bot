@@ -18,30 +18,34 @@ class Settings(BaseSettings):
     bot_mode: BotMode = Field(default="paper", alias="BOT_MODE")
     enable_real_trading: bool = Field(default=False, alias="ENABLE_REAL_TRADING")
 
-    exchange: str = Field(default="binance", alias="EXCHANGE")
+    exchange: str = Field(default="okx", alias="EXCHANGE")
     provider: str = Field(default="paper", alias="PROVIDER")
     symbol: str = Field(default="BTC/USDT", alias="SYMBOL")
     timeframe: str = Field(default="15m", alias="TIMEFRAME")
     asset_class: str = Field(default="crypto", alias="ASSET_CLASS")
 
-    binance_api_key: str = Field(default="", alias="BINANCE_API_KEY")
-    binance_api_secret: str = Field(default="", alias="BINANCE_API_SECRET")
-    binance_testnet: bool = Field(default=True, alias="BINANCE_TESTNET")
+    okx_api_key: str = Field(default="", alias="OKX_API_KEY")
+    okx_api_secret: str = Field(default="", alias="OKX_API_SECRET")
+    okx_passphrase: str = Field(default="", alias="OKX_PASSPHRASE")
+    okx_demo: bool = Field(default=True, alias="OKX_DEMO")
+    okx_market_type: str = Field(default="swap", alias="OKX_MARKET_TYPE")
+    okx_margin_mode: str = Field(default="cross", alias="OKX_MARGIN_MODE")
+    live_trading_ack: str = Field(default="", alias="LIVE_TRADING_ACK")
+    api_auth_token: str = Field(default="", alias="API_AUTH_TOKEN")
+    cors_origins: str = Field(default="http://127.0.0.1:5173,http://localhost:5173", alias="CORS_ORIGINS")
 
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str = Field(default="", alias="TELEGRAM_CHAT_ID")
 
     initial_balance: float = Field(default=10_000.0, alias="INITIAL_BALANCE", gt=0)
-    account_currency: str = Field(default="USD", alias="ACCOUNT_CURRENCY")
+    account_currency: str = Field(default="USDT", alias="ACCOUNT_CURRENCY")
     default_leverage: float = Field(default=1.0, alias="DEFAULT_LEVERAGE", gt=0)
     default_lot_size: float = Field(default=0.01, alias="DEFAULT_LOT_SIZE", gt=0)
-    ctrader_client_id: str = Field(default="", alias="CTRADER_CLIENT_ID")
-    ctrader_client_secret: str = Field(default="", alias="CTRADER_CLIENT_SECRET")
-    ctrader_access_token: str = Field(default="", alias="CTRADER_ACCESS_TOKEN")
-    ctrader_account_id: str = Field(default="", alias="CTRADER_ACCOUNT_ID")
-    ctrader_environment: str = Field(default="demo", alias="CTRADER_ENVIRONMENT")
+    max_leverage: float = Field(default=3.0, alias="MAX_LEVERAGE", gt=0)
+    max_position_notional: float = Field(default=100.0, alias="MAX_POSITION_NOTIONAL", gt=0)
     auto_start_worker: bool = Field(default=True, alias="AUTO_START_WORKER")
     auto_start_telegram: bool = Field(default=True, alias="AUTO_START_TELEGRAM")
+    load_provider_symbols_on_startup: bool = Field(default=False, alias="LOAD_PROVIDER_SYMBOLS_ON_STARTUP")
     risk_per_trade: float = Field(default=0.01, alias="RISK_PER_TRADE", gt=0, le=0.05)
     max_daily_loss: float = Field(default=0.03, alias="MAX_DAILY_LOSS", gt=0, le=0.25)
     stop_loss_percent: float = Field(default=0.01, alias="STOP_LOSS_PERCENT", gt=0)
@@ -72,6 +76,10 @@ class Settings(BaseSettings):
     @property
     def is_live_trading_allowed(self) -> bool:
         return self.bot_mode == "live" and self.enable_real_trading
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache

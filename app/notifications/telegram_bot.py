@@ -46,10 +46,10 @@ def run_telegram_polling(settings: Settings, interval_seconds: int = 3) -> None:
                     continue
                 text = message.get("text", "")
                 with SessionLocal() as db:
-                    reply = handle_telegram_command(text, db, settings)
+                    reply = handle_telegram_command(text, db, settings, requester_id=str(chat.get("id")))
                 notifier.send(reply)
         except Exception as exc:
-            logger.warning("Telegram polling failed: {}", exc)
+            logger.warning("Telegram polling failed: {}", _safe_telegram_error(exc))
             time.sleep(interval_seconds)
 
 
@@ -61,4 +61,8 @@ def _delete_webhook(settings: Settings) -> None:
             timeout=10,
         )
     except requests.RequestException as exc:
-        logger.warning("Telegram webhook cleanup failed: {}", exc)
+        logger.warning("Telegram webhook cleanup failed: {}", _safe_telegram_error(exc))
+
+
+def _safe_telegram_error(exc: Exception) -> str:
+    return exc.__class__.__name__

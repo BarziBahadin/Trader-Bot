@@ -17,7 +17,7 @@ class PaperProvider(MarketProvider):
     def __init__(self, settings: Settings):
         self.settings = settings
         self.cash = settings.initial_balance
-        self.exchange = ccxt.binance({"enableRateLimit": True})
+        self.exchange = ccxt.okx({"enableRateLimit": True})
 
     def status(self) -> ProviderStatus:
         return ProviderStatus(self.name, True, "Paper provider active")
@@ -29,6 +29,11 @@ class PaperProvider(MarketProvider):
         if infer_asset_class(symbol) == "crypto":
             crypto_symbol = symbol if "/" in symbol else symbol.replace("USDT", "/USDT")
             return self.exchange.fetch_ohlcv(crypto_symbol, timeframe=timeframe, limit=limit)
+        if "/" in symbol:
+            try:
+                return self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+            except Exception:
+                pass
         return _synthetic_ohlcv(symbol, limit)
 
     def fetch_balance(self) -> dict[str, Any]:

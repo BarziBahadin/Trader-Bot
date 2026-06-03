@@ -45,7 +45,8 @@ def _run_once(settings: Settings, notifier: TelegramNotifier) -> None:
         settings.asset_class = state.active_asset_class
         settings.timeframe = state.timeframe
 
-        provider = build_provider(state.active_provider, settings)
+        provider_name = "paper" if settings.bot_mode == "paper" else state.active_provider
+        provider = build_provider(provider_name, settings)
         candles = MarketData(provider).candles(state.active_symbol, state.timeframe)
         open_position = db.query(Trade).filter(Trade.symbol == state.active_symbol, Trade.status == "open").first()
         entry_price = open_position.entry_price if open_position else None

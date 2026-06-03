@@ -26,14 +26,18 @@ class Instrument:
 
 
 DEFAULT_INSTRUMENTS: list[Instrument] = [
-    Instrument("BTC/USDT", "Bitcoin / Tether", "crypto", "binance", "BTC", "USDT", 2, 0.01, 1, 0.00001, 0.00001, 1),
-    Instrument("ETH/USDT", "Ethereum / Tether", "crypto", "binance", "ETH", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
-    Instrument("EURUSD", "Euro / US Dollar", "forex", "ctrader", "EUR", "USD", 5, 0.00001, 100_000, 0.01, 0.01, 30),
-    Instrument("GBPUSD", "British Pound / US Dollar", "forex", "ctrader", "GBP", "USD", 5, 0.00001, 100_000, 0.01, 0.01, 30),
-    Instrument("USDJPY", "US Dollar / Yen", "forex", "ctrader", "USD", "JPY", 3, 0.001, 100_000, 0.01, 0.01, 30),
-    Instrument("XAUUSD", "Gold / US Dollar", "metals", "ctrader", "XAU", "USD", 2, 0.01, 100, 0.01, 0.01, 20),
-    Instrument("XAGUSD", "Silver / US Dollar", "metals", "ctrader", "XAG", "USD", 3, 0.001, 5_000, 0.01, 0.01, 20),
-    Instrument("USOIL", "US Oil", "commodities", "ctrader", "OIL", "USD", 2, 0.01, 1_000, 0.01, 0.01, 10),
+    Instrument("BTC/USDT:USDT", "Bitcoin USDT perpetual", "crypto", "okx", "BTC", "USDT", 2, 0.01, 1, 0.01, 0.01, 10),
+    Instrument("ETH/USDT:USDT", "Ethereum USDT perpetual", "crypto", "okx", "ETH", "USDT", 2, 0.01, 1, 0.01, 0.01, 10),
+    Instrument("SOL/USDT:USDT", "Solana USDT perpetual", "crypto", "okx", "SOL", "USDT", 3, 0.001, 1, 0.01, 0.01, 10),
+    Instrument("BTC/USDT", "Bitcoin / Tether", "crypto", "okx", "BTC", "USDT", 2, 0.01, 1, 0.00001, 0.00001, 1),
+    Instrument("ETH/USDT", "Ethereum / Tether", "crypto", "okx", "ETH", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
+    Instrument("SOL/USDT", "Solana / Tether", "crypto", "okx", "SOL", "USDT", 3, 0.001, 1, 0.001, 0.001, 1),
+    Instrument("PAXG/USDT", "PAX Gold / Tether", "metals", "okx", "PAXG", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
+    Instrument("XAUT/USDT", "Tether Gold / Tether", "metals", "okx", "XAUT", "USDT", 2, 0.01, 1, 0.0001, 0.0001, 1),
+    Instrument("EUR/USDT", "Euro / Tether", "forex", "okx", "EUR", "USDT", 5, 0.00001, 1, 0.01, 0.01, 1),
+    Instrument("EURC/USDT", "Euro Coin / Tether", "forex", "okx", "EURC", "USDT", 5, 0.00001, 1, 0.01, 0.01, 1),
+    Instrument("XAUUSD", "Gold / US Dollar preview", "metals", "okx", "XAU", "USD", 2, 0.01, 100, 0.01, 0.01, 20, trade_enabled=False),
+    Instrument("USOIL", "US Oil preview", "commodities", "okx", "OIL", "USD", 2, 0.01, 1_000, 0.01, 0.01, 10, trade_enabled=False),
 ]
 
 

@@ -17,8 +17,11 @@ services:
   trader-dashboard:
     build:
       context: ./frontend
+    env_file:
+      - .env
     environment:
       VITE_API_URL: http://127.0.0.1:8000
+      VITE_API_TOKEN: ${API_AUTH_TOKEN:-}
     ports:
       - "5173:5173"
     volumes:

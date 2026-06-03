@@ -5,10 +5,11 @@ import TradingChart from './TradingChart.jsx';
 import './styles.css';
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
 
 async function api(path, options) {
   const res = await fetch(`${API}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(API_TOKEN ? { 'X-API-Key': API_TOKEN } : {}) },
     ...options,
   });
   if (!res.ok) throw new Error(await res.text());
@@ -132,9 +133,16 @@ function App() {
 
       <section className="grid four">
         <StatusCard title="Provider" value={status?.provider_status?.connected ? 'Connected' : 'Disconnected'} detail={status?.provider_status?.message} icon={status?.provider_status?.connected ? CheckCircle2 : AlertTriangle} />
+        <StatusCard title="Equity" value={format(status?.account?.equity)} detail={status?.account?.currency || 'USDT'} />
+        <StatusCard title="Free Balance" value={format(status?.account?.free)} detail={`Used ${format(status?.account?.used)}`} />
+        <StatusCard title="Unrealized PnL" value={format(status?.account?.unrealized_pnl)} detail={status?.account?.message} />
+      </section>
+
+      <section className="grid four">
         <StatusCard title="Latest Price" value={format(status?.latest_price)} detail={selectedSymbol} />
+        <StatusCard title="Market Type" value={status?.account?.market_type || '-'} detail={status?.account?.margin_mode ? `${status.account.margin_mode} margin` : ''} />
         <StatusCard title="Open Position" value={status?.open_position ? 'Yes' : 'No'} detail={status?.open_position ? 'Manage below' : 'No active trade'} />
-        <StatusCard title="Safety" value={status?.real_trading_enabled ? 'Live enabled' : 'Protected'} detail={status?.emergency_stop ? 'Emergency stop active' : 'Ready'} icon={Shield} />
+        <StatusCard title="Live Futures" value={status?.live_readiness?.ready ? 'Ready' : 'Blocked'} detail={status?.real_trading_enabled ? 'Real trading flag on' : 'Real trading flag off'} icon={Shield} />
       </section>
 
       <section className="split">
@@ -143,7 +151,13 @@ function App() {
             <h2>{selectedSymbol} Chart</h2>
             <span>{status?.timeframe}</span>
           </div>
-          <TradingChart key={`${selectedSymbol}:${status?.timeframe}`} candles={candles} symbol={selectedSymbol} timeframe={status?.timeframe} />
+          <TradingChart
+            key={`${selectedSymbol}:${status?.timeframe}`}
+            candles={candles}
+            symbol={selectedSymbol}
+            timeframe={status?.timeframe}
+            onTimeframeChange={(value) => updateSetting('timeframe', value)}
+          />
         </div>
 
         <div className="panel">
@@ -184,7 +198,7 @@ function App() {
       </section>
 
       <section className="grid three">
-        <TablePanel title="Signals" rows={signals.slice(0, 8)} columns={['symbol', 'signal', 'price', 'rsi']} />
+        <TablePanel title="Signals" rows={signals.slice(0, 8)} columns={['symbol', 'signal', 'reason', 'price', 'rsi']} />
         <TablePanel title="Trades" rows={trades.slice(0, 8)} columns={['symbol', 'status', 'entry_price', 'pnl']} />
         <TablePanel title="Risk Events" rows={riskEvents.slice(0, 8)} columns={['event_type', 'message']} />
       </section>

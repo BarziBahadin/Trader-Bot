@@ -9,6 +9,7 @@ from app.db.models import Signal, Trade
 from app.exchange.base import ExchangeClient
 from app.notifications.telegram import TelegramNotifier
 from app.risk.risk_manager import RiskManager
+from app.services.execution_guard import ExecutionBlocked, assert_order_execution_allowed
 from app.strategy.rsi_ma_strategy import StrategyDecision
 from app.strategy.signals import TradeSignal
 
@@ -31,6 +32,7 @@ class OrderManager:
             fast_ma=decision.fast_ma,
             slow_ma=decision.slow_ma,
             price=decision.price,
+            reason=decision.reason,
         )
         db.add(signal)
         db.commit()
@@ -52,7 +54,12 @@ class OrderManager:
             self.notifier.send(f"Trade rejected: {risk.reason}")
             return None
 
-        order = self.exchange.create_market_buy_order(self.settings.symbol, risk.quantity)
+        try:
+            assert_order_execution_allowed(self.settings, getattr(self.settings, "provider", "paper"), self.settings.symbol)
+            order = self.exchange.create_market_buy_order(self.settings.symbol, risk.quantity)
+        except ExecutionBlocked as exc:
+            self.notifier.send(f"Trade rejected: {exc}")
+            return None
         trade = Trade(
             symbol=self.settings.symbol,
             provider=getattr(self.settings, "provider", "paper"),
@@ -81,7 +88,12 @@ class OrderManager:
         trade = db.query(Trade).filter(Trade.symbol == self.settings.symbol, Trade.status == "open").first()
         if not trade:
             return None
-        self.exchange.create_market_sell_order(self.settings.symbol, trade.quantity)
+        try:
+            assert_order_execution_allowed(self.settings, trade.provider, trade.symbol)
+            self.exchange.create_market_sell_order(self.settings.symbol, trade.quantity)
+        except ExecutionBlocked as exc:
+            self.notifier.send(f"Trade rejected: {exc}")
+            return None
         trade.exit_price = decision.price
         trade.pnl = (decision.price - trade.entry_price) * trade.quantity
         trade.status = "closed"

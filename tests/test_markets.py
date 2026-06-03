@@ -10,7 +10,7 @@ def test_infers_asset_classes():
 
 
 def test_calculates_lot_margin_and_risk():
-    instrument = default_instrument("XAUUSD", "ctrader")
+    instrument = default_instrument("XAUUSD", "okx")
 
     preview = calculate_position_size(
         instrument,

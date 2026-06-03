@@ -37,6 +37,11 @@ def _migrate_sqlite() -> None:
         "signals": {
             "provider": "VARCHAR(32) DEFAULT 'paper'",
             "asset_class": "VARCHAR(32) DEFAULT 'crypto'",
+            "reason": "TEXT DEFAULT ''",
+        },
+        "confirmation_codes": {
+            "code_hash": "VARCHAR(128)",
+            "requester_id": "VARCHAR(64)",
         },
     }
     with engine.begin() as connection:

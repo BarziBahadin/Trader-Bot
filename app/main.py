@@ -15,7 +15,10 @@ from app.db.models import RiskEvent, Signal, Trade
 from app.markets.sizing import calculate_position_size
 from app.providers.registry import build_provider, build_providers
 from app.risk.risk_manager import create_stop_file, remove_stop_file
+from app.services.api_auth import require_api_auth
 from app.services.confirmations import consume_confirmation, create_confirmation
+from app.services.execution_guard import ExecutionBlocked, assert_order_execution_allowed
+from app.services.live_readiness import live_readiness
 from app.services.market_service import (
     find_instrument,
     list_instruments,
@@ -32,11 +35,12 @@ from app.notifications.telegram_bot import run_telegram_polling
 _worker_started = False
 _telegram_started = False
 
+settings_for_app = get_settings()
 app = FastAPI(title="Multi-Market Trader Bot")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings_for_app.cors_origin_list,
+    allow_credentials=bool(settings_for_app.api_auth_token),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -76,11 +80,12 @@ def startup() -> None:
     init_db()
     with SessionLocal() as db:
         seed_market_defaults(db, settings)
-        for provider in build_providers(settings):
-            try:
-                upsert_instruments(db, provider.instruments())
-            except Exception:
-                continue
+        if settings.load_provider_symbols_on_startup:
+            for provider in build_providers(settings):
+                try:
+                    upsert_instruments(db, provider.instruments())
+                except Exception:
+                    continue
     if os.getenv("PYTEST_CURRENT_TEST"):
         return
     if settings.auto_start_worker and not _worker_started:
@@ -97,12 +102,13 @@ def health() -> dict:
 
 
 @app.get("/api/status")
-def api_status(settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_status(settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = require_app_state(db, settings)
     open_trade = db.query(Trade).filter(Trade.symbol == state.active_symbol, Trade.status == "open").first()
     provider = build_provider(state.active_provider, settings)
     provider_status = provider.status()
     latest_price = _latest_price(provider, state.active_symbol, state.timeframe)
+    account = _account_summary(provider)
     return {
         "mode": settings.bot_mode,
         "real_trading_enabled": settings.enable_real_trading,
@@ -117,12 +123,27 @@ def api_status(settings: Settings = Depends(get_settings), db: Session = Depends
         "open_position": open_trade is not None,
         "latest_price": latest_price,
         "provider_status": provider_status.__dict__,
+        "account": account,
+        "live_readiness": live_readiness(settings, state.active_symbol),
     }
 
 
 @app.get("/api/worker")
 def api_worker(settings: Settings = Depends(get_settings)) -> dict:
     return {"running": True, "loop_interval_seconds": 60, "emergency_stop": settings.stop_file.exists()}
+
+
+@app.get("/api/account")
+def api_account(settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
+    state = require_app_state(db, settings)
+    provider = build_provider(state.active_provider, settings)
+    return _account_summary(provider)
+
+
+@app.get("/api/live-readiness")
+def api_live_readiness(settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
+    state = require_app_state(db, settings)
+    return live_readiness(settings, state.active_symbol)
 
 
 @app.get("/api/symbols")
@@ -136,30 +157,30 @@ def api_watchlist(db: Session = Depends(get_db)) -> list[dict]:
 
 
 @app.post("/api/symbols/activate")
-def api_activate_symbol_body(request: ActivateSymbolRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_activate_symbol_body(request: ActivateSymbolRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = set_active_symbol(db, settings, request.symbol)
     return _state_to_dict(state)
 
 
 @app.post("/api/symbols/{symbol:path}/activate")
-def api_activate_symbol(symbol: str, settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_activate_symbol(symbol: str, settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = set_active_symbol(db, settings, symbol)
     return _state_to_dict(state)
 
 
 @app.get("/api/settings")
-def api_settings(settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_settings(settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     return _state_to_dict(require_app_state(db, settings))
 
 
 @app.patch("/api/settings")
-def api_update_settings(patch: SettingsPatch, settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_update_settings(patch: SettingsPatch, settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = update_state(db, settings, patch.model_dump(exclude_none=True))
     return _state_to_dict(state)
 
 
 @app.post("/api/position-size")
-def api_position_size(request: CalcRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_position_size(request: CalcRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = require_app_state(db, settings)
     symbol = request.symbol or state.active_symbol
     instrument = find_instrument(db, symbol)
@@ -167,7 +188,7 @@ def api_position_size(request: CalcRequest, settings: Settings = Depends(get_set
         raise HTTPException(status_code=404, detail=f"unknown symbol {symbol}")
     provider = build_provider(instrument.provider, settings)
     price = request.price or _latest_price(provider, instrument.symbol, state.timeframe)
-    if price is None:
+    if price is None and (settings.bot_mode != "live" or not instrument.trade_enabled):
         price = _latest_price(build_provider("paper", settings), instrument.symbol, state.timeframe)
     if not price:
         raise HTTPException(status_code=503, detail=f"price unavailable for {instrument.symbol}")
@@ -202,6 +223,8 @@ def _candles_for_symbol(symbol: str, timeframe: str, limit: int, settings: Setti
     try:
         data = MarketData(provider).candles(instrument.symbol, timeframe, limit)
     except Exception:
+        if settings.bot_mode == "live" and instrument.trade_enabled:
+            raise HTTPException(status_code=503, detail=f"{instrument.provider} market data unavailable")
         data = MarketData(build_provider("paper", settings)).candles(instrument.symbol, timeframe, limit)
     if "timestamp" in data:
         data["timestamp"] = data["timestamp"].astype(str)
@@ -209,34 +232,34 @@ def _candles_for_symbol(symbol: str, timeframe: str, limit: int, settings: Setti
 
 
 @app.get("/api/trades")
-def api_trades(db: Session = Depends(get_db)) -> list[dict]:
+def api_trades(db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> list[dict]:
     return [_trade_to_dict(row) for row in db.query(Trade).order_by(Trade.id.desc()).limit(200).all()]
 
 
 @app.get("/api/signals")
-def api_signals(db: Session = Depends(get_db)) -> list[dict]:
+def api_signals(db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> list[dict]:
     return [_signal_to_dict(row) for row in db.query(Signal).order_by(Signal.id.desc()).limit(200).all()]
 
 
 @app.get("/api/risk-events")
-def api_risk_events(db: Session = Depends(get_db)) -> list[dict]:
+def api_risk_events(db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> list[dict]:
     return [_risk_event_to_dict(row) for row in db.query(RiskEvent).order_by(RiskEvent.id.desc()).limit(200).all()]
 
 
 @app.post("/api/emergency-stop")
-def api_emergency_stop(settings: Settings = Depends(get_settings)) -> dict:
+def api_emergency_stop(settings: Settings = Depends(get_settings), _: None = Depends(require_api_auth)) -> dict:
     create_stop_file(settings.stop_file)
     return {"emergency_stop": True}
 
 
 @app.post("/api/resume")
-def api_resume(settings: Settings = Depends(get_settings)) -> dict:
+def api_resume(settings: Settings = Depends(get_settings), _: None = Depends(require_api_auth)) -> dict:
     remove_stop_file(settings.stop_file)
     return {"emergency_stop": False}
 
 
 @app.post("/api/position/close/preview")
-def api_close_preview(settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_close_preview(settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     state = require_app_state(db, settings)
     trade = db.query(Trade).filter(Trade.symbol == state.active_symbol, Trade.status == "open").first()
     if trade is None:
@@ -246,13 +269,17 @@ def api_close_preview(settings: Settings = Depends(get_settings), db: Session = 
 
 
 @app.post("/api/position/close/confirm")
-def api_close_confirm(request: ConfirmRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+def api_close_confirm(request: ConfirmRequest, settings: Settings = Depends(get_settings), db: Session = Depends(get_db), _: None = Depends(require_api_auth)) -> dict:
     payload = consume_confirmation(db, request.code, "close_position")
     if payload is None:
         raise HTTPException(status_code=400, detail="invalid or expired confirmation code")
     trade = db.query(Trade).filter(Trade.id == payload["trade_id"], Trade.status == "open").first()
     if trade is None:
         raise HTTPException(status_code=404, detail="open trade not found")
+    try:
+        assert_order_execution_allowed(settings, trade.provider, trade.symbol)
+    except ExecutionBlocked as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     provider = build_provider(trade.provider, settings)
     provider.close_position(trade.symbol, trade.quantity)
     trade.status = "closed"
@@ -301,6 +328,32 @@ def _latest_price(provider, symbol: str, timeframe: str) -> float | None:
     if not candles:
         return None
     return float(candles[-1][4])
+
+
+def _account_summary(provider) -> dict:
+    if hasattr(provider, "account_summary"):
+        try:
+            return provider.account_summary()
+        except Exception as exc:
+            return {"connected": False, "message": _safe_error_message(exc)}
+    try:
+        balance = provider.fetch_balance()
+    except Exception as exc:
+        return {"connected": False, "message": _safe_error_message(exc)}
+    return {
+        "connected": True,
+        "currency": "USDT",
+        "equity": float((balance.get("total") or {}).get("USDT") or 0.0),
+        "free": float((balance.get("free") or {}).get("USDT") or 0.0),
+        "used": float((balance.get("used") or {}).get("USDT") or 0.0),
+        "total": float((balance.get("total") or {}).get("USDT") or 0.0),
+        "unrealized_pnl": 0.0,
+        "message": "balance loaded",
+    }
+
+
+def _safe_error_message(exc: Exception) -> str:
+    return exc.__class__.__name__
 
 
 def _state_to_dict(state) -> dict:
@@ -355,6 +408,7 @@ def _signal_to_dict(signal: Signal) -> dict:
         "fast_ma": signal.fast_ma,
         "slow_ma": signal.slow_ma,
         "price": signal.price,
+        "reason": signal.reason,
         "created_at": signal.created_at,
     }
 
