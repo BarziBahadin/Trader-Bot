@@ -1,7 +1,6 @@
 services:
   trader-api:
     build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - .env
     environment:
@@ -10,8 +9,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app/app
-      - ./run_bot.py:/app/run_bot.py
+      - ./cmd:/app/cmd
+      - ./internal:/app/internal
+      - ./STOP_BOT.txt:/app/STOP_BOT.txt
       - trader-data:/app/data
       - ./logs:/app/logs
   trader-dashboard:
@@ -20,7 +20,7 @@ services:
     env_file:
       - .env
     environment:
-      VITE_API_URL: http://127.0.0.1:8000
+      VITE_API_URL: http://127.0.0.1:8000/api/v1
       VITE_API_TOKEN: ${API_AUTH_TOKEN:-}
     ports:
       - "5173:5173"

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AlertTriangle, CheckCircle2, PauseCircle, PlayCircle, RefreshCw, Shield, XCircle } from 'lucide-react';
 import TradingChart from './TradingChart.jsx';
 import './styles.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
 
 async function api(path, options) {
@@ -28,18 +28,22 @@ function App() {
   const [preview, setPreview] = useState(null);
   const [closeCode, setCloseCode] = useState('');
   const [error, setError] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const loadingRef = useRef(false);
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       setError('');
       const [nextStatus, nextSettings, nextSymbols, nextWatchlist, nextSignals, nextTrades, nextRisk] = await Promise.all([
-        api('/api/status'),
-        api('/api/settings'),
-        api('/api/symbols'),
-        api('/api/watchlist'),
-        api('/api/signals'),
-        api('/api/trades'),
-        api('/api/risk-events'),
+        api('/status'),
+        api('/settings'),
+        api('/symbols'),
+        api('/watchlist'),
+        api('/signals'),
+        api('/trades'),
+        api('/risk-events'),
       ]);
       setStatus(nextStatus);
       setSettings(nextSettings);
@@ -49,49 +53,59 @@ function App() {
       setTrades(nextTrades);
       setRiskEvents(nextRisk);
       const symbol = nextStatus.symbol;
-      setCandles(await api(`/api/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${nextStatus.timeframe}&limit=80`));
-      setPreview(await api('/api/position-size', { method: 'POST', body: JSON.stringify({ symbol }) }));
+      setCandles(await api(`/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${nextStatus.timeframe}&limit=80`));
+      setPreview(await api('/position-size', { method: 'POST', body: JSON.stringify({ symbol }) }));
     } catch (err) {
       setError(err.message);
+    } finally {
+      loadingRef.current = false;
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000);
+  }, [load]);
+
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        load();
+      }
+    }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [autoRefresh, load]);
 
   async function activateSymbol(symbol) {
     setCandles([]);
-    await api('/api/symbols/activate', { method: 'POST', body: JSON.stringify({ symbol }) });
+    await api('/symbols/activate', { method: 'POST', body: JSON.stringify({ symbol }) });
     await load();
   }
 
   async function updateSetting(key, value) {
     const next = { ...settings, [key]: value };
     setSettings(next);
-    await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) });
+    await api('/settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) });
     await load();
   }
 
   async function stop() {
-    await api('/api/emergency-stop', { method: 'POST' });
+    await api('/emergency-stop', { method: 'POST' });
     await load();
   }
 
   async function resume() {
-    await api('/api/resume', { method: 'POST' });
+    await api('/resume', { method: 'POST' });
     await load();
   }
 
   async function previewClose() {
-    const result = await api('/api/position/close/preview', { method: 'POST' });
+    const result = await api('/position/close/preview', { method: 'POST' });
     setCloseCode(result.code);
   }
 
   async function confirmClose() {
-    await api('/api/position/close/confirm', { method: 'POST', body: JSON.stringify({ code: closeCode }) });
+    await api('/position/close/confirm', { method: 'POST', body: JSON.stringify({ code: closeCode }) });
     setCloseCode('');
     await load();
   }
@@ -123,12 +137,16 @@ function App() {
         <label>
           Timeframe
           <select value={settings?.timeframe || '15m'} onChange={(event) => updateSetting('timeframe', event.target.value)}>
-            {['1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((item) => <option key={item}>{item}</option>)}
+            {['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((item) => <option key={item}>{item}</option>)}
           </select>
         </label>
         <button onClick={status?.emergency_stop ? resume : stop} className={status?.emergency_stop ? 'success' : 'danger'}>
           {status?.emergency_stop ? <PlayCircle size={18} /> : <PauseCircle size={18} />}
           {status?.emergency_stop ? 'Resume' : 'Stop'}
+        </button>
+        <button onClick={() => setAutoRefresh((value) => !value)} className={autoRefresh ? 'success' : ''}>
+          <RefreshCw size={18} />
+          Auto {autoRefresh ? 'On' : 'Off'}
         </button>
       </section>
 

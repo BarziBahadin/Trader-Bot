@@ -1,6 +1,6 @@
 # Multi-Market Trader Bot
 
-Paper-first trading console for crypto, OKX-listed markets, and preview instruments. It includes a FastAPI backend, React dashboard, Telegram controls, SQLite storage, risk/lot/margin calculator, and provider adapters for paper and OKX.
+Paper-first trading console for crypto, OKX-listed markets, and preview instruments. It includes a Go backend, React dashboard, Telegram controls, SQLite storage, risk/lot/margin calculator, and provider adapters for paper and OKX.
 
 ## Safety Defaults
 
@@ -27,7 +27,7 @@ Normal development run:
 docker compose up
 ```
 
-The Docker setup mounts local source files into the containers. Backend code reloads through Uvicorn and the React dashboard hot-reloads through Vite, so most code edits do not need a Docker rebuild.
+The Docker setup runs the Go API and React dashboard. Rebuild the API container after Go backend edits.
 
 Dashboard:
 
@@ -44,16 +44,13 @@ http://127.0.0.1:8000
 ## Run Locally
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 npm --prefix frontend install
 ```
 
 Backend:
 
 ```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+go run ./cmd/trader-api
 ```
 
 Frontend:
@@ -150,32 +147,32 @@ Use `/livecheck` in Telegram or `GET /api/live-readiness` before expecting real 
 
 Main endpoints:
 
-- `GET /api/status`
-- `GET /api/account`
-- `GET /api/live-readiness`
-- `GET /api/worker`
-- `GET /api/symbols`
-- `GET /api/watchlist`
-- `POST /api/symbols/{symbol}/activate`
-- `GET /api/settings`
-- `PATCH /api/settings`
-- `POST /api/position-size`
-- `GET /api/candles/{symbol}`
-- `GET /api/trades`
-- `GET /api/signals`
-- `GET /api/risk-events`
-- `POST /api/emergency-stop`
-- `POST /api/resume`
-- `POST /api/position/close/preview`
-- `POST /api/position/close/confirm`
+- `GET /api/v1/status`
+- `GET /api/v1/account`
+- `GET /api/v1/live-readiness`
+- `GET /api/v1/worker`
+- `GET /api/v1/symbols`
+- `GET /api/v1/watchlist`
+- `POST /api/v1/symbols/activate`
+- `GET /api/v1/settings`
+- `PATCH /api/v1/settings`
+- `POST /api/v1/position-size`
+- `GET /api/v1/candles?symbol=BTC/USDT:USDT`
+- `GET /api/v1/trades`
+- `GET /api/v1/signals`
+- `GET /api/v1/risk-events`
+- `POST /api/v1/emergency-stop`
+- `POST /api/v1/resume`
+- `POST /api/v1/position/close/preview`
+- `POST /api/v1/position/close/confirm`
 
-Legacy endpoints like `/status`, `/trades`, and `/signals` still work.
+Temporary `/api/*` compatibility routes are still exposed while the dashboard migration settles.
 
 If `API_AUTH_TOKEN` is set, protected API calls must include either `X-API-Key: <token>` or `Authorization: Bearer <token>`.
 
 ## Tests
 
 ```bash
-pytest
+go test ./...
 npm --prefix frontend run build
 ```

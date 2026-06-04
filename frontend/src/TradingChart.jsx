@@ -19,6 +19,7 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
   const ma20SeriesRef = useRef(null);
   const ma50SeriesRef = useRef(null);
   const rsiSeriesRef = useRef(null);
+  const fittedKeyRef = useRef('');
   const [selectedCandle, setSelectedCandle] = useState(null);
 
   const chartData = useMemo(() => {
@@ -65,7 +66,7 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
       timeScale: {
         borderColor: '#374151',
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: timeframe === '1s',
         rightOffset: 8,
         barSpacing: 9,
       },
@@ -92,7 +93,7 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
       timeScale: {
         borderColor: '#374151',
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: timeframe === '1s',
       },
       handleScroll: true,
       handleScale: true,
@@ -181,7 +182,7 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
       ma50SeriesRef.current = null;
       rsiSeriesRef.current = null;
     };
-  }, []);
+  }, [timeframe]);
 
   useEffect(() => {
     if (!chartRef.current || !rsiChartRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return;
@@ -196,10 +197,14 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
         color: close >= open ? 'rgba(34, 171, 148, 0.35)' : 'rgba(242, 54, 69, 0.35)',
       })),
     );
-    chartRef.current.timeScale().fitContent();
-    rsiChartRef.current.timeScale().fitContent();
-    setSelectedCandle(null);
-  }, [chartData, ma20Data, ma50Data, rsiData]);
+    const nextKey = `${symbol || ''}:${timeframe || ''}`;
+    if (fittedKeyRef.current !== nextKey) {
+      chartRef.current.timeScale().fitContent();
+      rsiChartRef.current.timeScale().fitContent();
+      fittedKeyRef.current = nextKey;
+      setSelectedCandle(null);
+    }
+  }, [chartData, ma20Data, ma50Data, rsiData, symbol, timeframe]);
 
   return (
     <div className="tvShell">
@@ -209,7 +214,7 @@ export default function TradingChart({ candles, symbol, timeframe, onTimeframeCh
           <span>{timeframe || '-'}</span>
         </div>
         <div className="tvToolbar">
-          {['1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((item) => (
+          {['1s', '1m', '5m', '15m', '30m', '1h', '4h', '1d'].map((item) => (
             <button key={item} className={item === timeframe ? 'active' : ''} onClick={() => onTimeframeChange?.(item)}>{item}</button>
           ))}
         </div>
